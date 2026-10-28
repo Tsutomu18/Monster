@@ -33,6 +33,7 @@ import com.example.ui.auth.signOut
 import com.example.ui.screens.BreedingAndDexScreen
 import com.example.ui.screens.DojoTrainingAndEvolutionScreen
 import com.example.ui.screens.QuestsCraftingAndOnlineScreen
+import com.example.ui.screens.SystemWorldAndBadgesSection
 import com.example.ui.screens.WorldAndBattleScreen
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AetheronViewModel
@@ -86,6 +87,14 @@ fun AetheronRootApp(auth: FirebaseAuth = Firebase.auth) {
             onExitLocalMode = { isLocalSessionActive = false }
         )
     }
+}
+
+private enum class SystemMenuSection(val titleDe: String, val badgeTag: String) {
+    WELT("🌍 Welt", "nav_tab_world"),
+    ORDEN("🏆 Orden", "system_tab_badges"),
+    DOJO("🥋 Dojo", "nav_tab_dojo"),
+    QUESTS("📜 Quests", "nav_tab_quests"),
+    DEX("🧬 Zucht & Dex", "nav_tab_breeding")
 }
 
 @Composable
@@ -160,11 +169,12 @@ fun AetheronAuthenticatedContent(
     val openTradesState by viewModel.openTradesState.collectAsStateWithLifecycle()
     val arenaRostersState by viewModel.arenaRostersState.collectAsStateWithLifecycle()
 
-    var currentTab by remember { mutableIntStateOf(0) }
+    var isSystemMenuOpen by remember { mutableStateOf(false) }
+    var activeSystemSection by remember { mutableStateOf(SystemMenuSection.WELT) }
 
-    if (currentTab != 0) {
+    if (isSystemMenuOpen) {
         BackHandler {
-            currentTab = 0
+            isSystemMenuOpen = false
         }
     }
 
@@ -175,13 +185,13 @@ fun AetheronAuthenticatedContent(
         topBar = {
             Surface(
                 color = DeepTacticalSurface,
-                tonalElevation = 4.dp,
+                tonalElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
                         .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -189,31 +199,74 @@ fun AetheronAuthenticatedContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${gameState.trainerName} (Lv.${gameState.playerLevel})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = AetherCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "🏆 ${gameState.earnedBadges.size}/24 • 🐉 ${gameState.capturedSpeciesIds.size}/240 • 💰 ${gameState.gold}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = BadgeGold,
+                                    maxLines = 1
+                                )
+                            }
                             Text(
-                                text = "AETHERON • ${gameState.trainerName} (Lv.${gameState.playerLevel})",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = AetherCyan,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "🏆 ${gameState.earnedBadges.size}/24 Orden • 🐉 ${gameState.capturedSpeciesIds.size}/240 Monster • 💰 ${gameState.gold} Gold",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = BadgeGold
+                                text = gameState.statusBannerDe,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                maxLines = 1
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = { isSystemMenuOpen = !isSystemMenuOpen },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier
+                                    .height(34.dp)
+                                    .testTag("top_system_button"),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (isSystemMenuOpen) BadgeGold else AetherCyan.copy(alpha = 0.2f),
+                                    contentColor = if (isSystemMenuOpen) MidnightSlate else AetherCyan
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (isSystemMenuOpen) Icons.Default.Map else Icons.Default.Apps,
+                                    contentDescription = "System Menü",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isSystemMenuOpen) "Karte" else "System",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
                             IconButton(
                                 onClick = {
                                     viewModel.syncToCloud(silent = false)
                                     monsterViewModel.refreshAndSyncMonsters()
                                 },
-                                modifier = Modifier.testTag("top_cloud_save_button")
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("top_cloud_save_button")
                             ) {
                                 Icon(
                                     imageVector = if (isCloudAuthenticated) Icons.Default.CloudDone else Icons.Default.Save,
                                     contentDescription = if (isCloudAuthenticated) "Cloud Speichern" else "Lokal Speichern",
-                                    tint = if (gameState.isCloudSynced) ElementTerra else AetherCyan
+                                    tint = if (gameState.isCloudSynced) ElementTerra else AetherCyan,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                             IconButton(
@@ -230,70 +283,20 @@ fun AetheronAuthenticatedContent(
                                         onExitLocalMode()
                                     }
                                 },
-                                modifier = Modifier.testTag("sign_out_button")
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("sign_out_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Logout,
                                     contentDescription = if (isCloudAuthenticated) "Abmelden" else "Zum Startbildschirm / Google Login",
-                                    tint = TextSecondary
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Live Status Ticker
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(ElevatedTacticalCard, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = gameState.statusBannerDe,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextPrimary,
-                            maxLines = 2
-                        )
-                    }
                 }
-            }
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = DeepTacticalSurface,
-                contentColor = TextPrimary,
-                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
-            ) {
-                NavigationBarItem(
-                    selected = currentTab == 0,
-                    onClick = { currentTab = 0 },
-                    icon = { Icon(Icons.Default.Explore, contentDescription = "Welt & Kampf") },
-                    label = { Text("Welt & Orden") },
-                    modifier = Modifier.testTag("nav_tab_world")
-                )
-                NavigationBarItem(
-                    selected = currentTab == 1,
-                    onClick = { currentTab = 1 },
-                    icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "Dojo & Evolution") },
-                    label = { Text("Dojo & Team") },
-                    modifier = Modifier.testTag("nav_tab_dojo")
-                )
-                NavigationBarItem(
-                    selected = currentTab == 2,
-                    onClick = { currentTab = 2 },
-                    icon = { Icon(Icons.Default.Science, contentDescription = "Zucht & 240 Dex") },
-                    label = { Text("Zucht & Dex") },
-                    modifier = Modifier.testTag("nav_tab_breeding")
-                )
-                NavigationBarItem(
-                    selected = currentTab == 3,
-                    onClick = { currentTab = 3 },
-                    icon = { Icon(Icons.Default.Assignment, contentDescription = "Quests & Online") },
-                    label = { Text("Quests & Hub") },
-                    modifier = Modifier.testTag("nav_tab_quests")
-                )
             }
         }
     ) { innerPadding ->
@@ -301,21 +304,155 @@ fun AetheronAuthenticatedContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
-            when (currentTab) {
-                0 -> WorldAndBattleScreen(gameState = gameState, viewModel = viewModel)
-                1 -> DojoTrainingAndEvolutionScreen(gameState = gameState, viewModel = viewModel)
-                2 -> BreedingAndDexScreen(
-                    gameState = gameState,
-                    viewModel = viewModel,
-                    monsterViewModel = monsterViewModel
-                )
-                3 -> QuestsCraftingAndOnlineScreen(
-                    gameState = gameState,
-                    openTradesState = openTradesState,
-                    arenaRostersState = arenaRostersState,
-                    viewModel = viewModel
-                )
+            // Main Uncluttered 2.5D Overworld Screen
+            WorldAndBattleScreen(
+                gameState = gameState,
+                viewModel = viewModel,
+                onOpenSystemMenu = { initialIndex ->
+                    activeSystemSection = SystemMenuSection.entries.getOrElse(initialIndex) { SystemMenuSection.WELT }
+                    isSystemMenuOpen = true
+                }
+            )
+
+            // Central System Menu Overlay housing Welt, Orden, Dojo, Quests, and Zucht & Dex
+            if (isSystemMenuOpen) {
+                Surface(
+                    color = MidnightSlate.copy(alpha = 0.97f),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("system_menu_overlay")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        // System Menu Header + Quick Overview Pills + Close Button
+                        Surface(
+                            color = DeepTacticalSurface,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "⚙️ SYSTEM-ZENTRALE",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = AetherCyan,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Welt • Arena-Orden • Dojo & Team • Quests • Zucht & Dex",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary
+                                        )
+                                    }
+                                    FilledTonalButton(
+                                        onClick = { isSystemMenuOpen = false },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier.testTag("close_system_menu_button"),
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = CrimsonAccent.copy(alpha = 0.22f),
+                                            contentColor = TextPrimary
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Schließen", modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Zur 2.5D Karte", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 5 Category Selector Buttons inside System Menu (Welt, Orden, Dojo, Quests, Zucht & Dex)
+                                ScrollableTabRow(
+                                    selectedTabIndex = activeSystemSection.ordinal,
+                                    containerColor = ElevatedTacticalCard,
+                                    contentColor = AetherCyan,
+                                    edgePadding = 4.dp,
+                                    divider = {}
+                                ) {
+                                    SystemMenuSection.entries.forEach { section ->
+                                        val selected = activeSystemSection == section
+                                        Tab(
+                                            selected = selected,
+                                            onClick = { activeSystemSection = section },
+                                            modifier = Modifier.testTag(section.badgeTag),
+                                            text = {
+                                                val subtitle = when (section) {
+                                                    SystemMenuSection.WELT -> "Kontinent ${gameState.currentContinentId}"
+                                                    SystemMenuSection.ORDEN -> "${gameState.earnedBadges.size}/24"
+                                                    SystemMenuSection.DOJO -> "${gameState.monsters.size} Team"
+                                                    SystemMenuSection.QUESTS -> "${gameState.activeQuests.size} Aktiv"
+                                                    SystemMenuSection.DEX -> "${gameState.capturedSpeciesIds.size}/240"
+                                                }
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(
+                                                        text = section.titleDe,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        color = if (selected) AetherCyan else TextPrimary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = subtitle,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = if (selected) BadgeGold else TextSecondary
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Active System Section Content
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            when (activeSystemSection) {
+                                SystemMenuSection.WELT -> SystemWorldAndBadgesSection(
+                                    gameState = gameState,
+                                    viewModel = viewModel,
+                                    showBadgesSection = false,
+                                    onCloseSystemMenu = { isSystemMenuOpen = false }
+                                )
+                                SystemMenuSection.ORDEN -> SystemWorldAndBadgesSection(
+                                    gameState = gameState,
+                                    viewModel = viewModel,
+                                    showBadgesSection = true,
+                                    onCloseSystemMenu = { isSystemMenuOpen = false }
+                                )
+                                SystemMenuSection.DOJO -> DojoTrainingAndEvolutionScreen(
+                                    gameState = gameState,
+                                    viewModel = viewModel
+                                )
+                                SystemMenuSection.QUESTS -> QuestsCraftingAndOnlineScreen(
+                                    gameState = gameState,
+                                    openTradesState = openTradesState,
+                                    arenaRostersState = arenaRostersState,
+                                    viewModel = viewModel
+                                )
+                                SystemMenuSection.DEX -> BreedingAndDexScreen(
+                                    gameState = gameState,
+                                    viewModel = viewModel,
+                                    monsterViewModel = monsterViewModel
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
