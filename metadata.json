@@ -1,0 +1,6 @@
+{
+  "name": "Aetheron",
+  "description": "Taktisches Monster-Taming-RPG mit 3 Kontinenten, 24 Orden, 240 Kreaturen, Zucht, interaktivem Training, dynamischen Quests und Online-Arena.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

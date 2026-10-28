@@ -1,0 +1,379 @@
+{
+  "entities": {
+    "Monster": {
+      "title": "Monster",
+      "description": "Individual tamed Monster entity stored in Firestore with combat stats (attack, defense, speed), genetics (IV rank, trait, generation), current level, and evolution progress.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the owning trainer."
+        },
+        "speciesId": {
+          "type": "integer",
+          "description": "Catalog species ID (1-240)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name or nickname of the monster."
+        },
+        "primaryElement": {
+          "type": "string",
+          "description": "Primary elemental affinity (e.g. TERRA, PYRO, AQUA, AETHER)."
+        },
+        "currentLevel": {
+          "type": "integer",
+          "description": "Current monster level (1-100)."
+        },
+        "xp": {
+          "type": "integer",
+          "description": "Current experience points towards next level."
+        },
+        "attack": {
+          "type": "integer",
+          "description": "Effective attack stat."
+        },
+        "defense": {
+          "type": "integer",
+          "description": "Effective defense stat."
+        },
+        "speed": {
+          "type": "integer",
+          "description": "Effective speed stat."
+        },
+        "elementalPower": {
+          "type": "integer",
+          "description": "Effective elemental power stat."
+        },
+        "maxHp": {
+          "type": "integer",
+          "description": "Maximum hit points."
+        },
+        "trainedAttack": {
+          "type": "integer",
+          "description": "Bonus attack points earned via Dojo mini-games (0-250)."
+        },
+        "trainedDefense": {
+          "type": "integer",
+          "description": "Bonus defense points earned via Dojo mini-games (0-250)."
+        },
+        "trainedSpeed": {
+          "type": "integer",
+          "description": "Bonus speed points earned via Dojo mini-games (0-250)."
+        },
+        "geneticIvRank": {
+          "type": "string",
+          "enum": ["C", "B", "A", "S", "S+"],
+          "description": "Genetic potential rank."
+        },
+        "geneticTraitId": {
+          "type": "string",
+          "description": "Identifier of the inherited genetic trait."
+        },
+        "geneticTraitName": {
+          "type": "string",
+          "description": "Display name of the inherited genetic trait."
+        },
+        "generation": {
+          "type": "integer",
+          "description": "Breeding generation number (1+)."
+        },
+        "evolutionStage": {
+          "type": "integer",
+          "description": "Current evolution stage (1-3)."
+        },
+        "evolutionProgressPercent": {
+          "type": "integer",
+          "description": "Evolution readiness progress percentage (0-100)."
+        },
+        "targetEvolutionSpeciesId": {
+          "type": "integer",
+          "description": "Next target evolution species ID (0 if fully evolved)."
+        },
+        "requiredArtifactId": {
+          "type": "string",
+          "description": "Optional evolution artifact ID for branching evolution (empty string if none)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "speciesId",
+        "name",
+        "primaryElement",
+        "currentLevel",
+        "xp",
+        "attack",
+        "defense",
+        "speed",
+        "elementalPower",
+        "maxHp",
+        "trainedAttack",
+        "trainedDefense",
+        "trainedSpeed",
+        "geneticIvRank",
+        "geneticTraitId",
+        "geneticTraitName",
+        "generation",
+        "evolutionStage",
+        "evolutionProgressPercent",
+        "targetEvolutionSpeciesId",
+        "requiredArtifactId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PlayerCloudProfile": {
+      "title": "PlayerCloudProfile",
+      "description": "Cloud save profile for an Aetheron trainer including progress across 3 continents, 24 badges, faction standings, and serialized team/inventory/quest state.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the player."
+        },
+        "trainerName": {
+          "type": "string",
+          "description": "Display name of the trainer."
+        },
+        "level": {
+          "type": "integer",
+          "description": "Trainer level (1-100)."
+        },
+        "gold": {
+          "type": "integer",
+          "description": "Aether gold currency balance."
+        },
+        "continentId": {
+          "type": "integer",
+          "description": "Current active continent ID (1: Sylvaria, 2: Pyroclast, 3: Aetheris)."
+        },
+        "badgesCount": {
+          "type": "integer",
+          "description": "Number of earned gym badges (0-24)."
+        },
+        "capturedCount": {
+          "type": "integer",
+          "description": "Number of unique monster species captured (0-240)."
+        },
+        "questsCompleted": {
+          "type": "integer",
+          "description": "Number of dynamic and faction quests completed."
+        },
+        "factionSylvariaRep": {
+          "type": "integer",
+          "description": "Reputation with Orden der Bewahrer."
+        },
+        "factionPyroclastRep": {
+          "type": "integer",
+          "description": "Reputation with Synthese-Syndikat."
+        },
+        "factionAetherisRep": {
+          "type": "integer",
+          "description": "Reputation with Freie Chronisten."
+        },
+        "saveStateJson": {
+          "type": "string",
+          "description": "Serialized state of monsters, trained stats, breeding, inventory, skills, and quests."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last cloud sync via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "trainerName",
+        "level",
+        "gold",
+        "continentId",
+        "badgesCount",
+        "capturedCount",
+        "questsCompleted",
+        "factionSylvariaRep",
+        "factionPyroclastRep",
+        "factionAetherisRep",
+        "saveStateJson",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TradeOffer": {
+      "title": "TradeOffer",
+      "description": "Global monster trade offer posted by a trainer.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the trainer offering the monster."
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Display name of the offering trainer."
+        },
+        "offeredSpeciesId": {
+          "type": "integer",
+          "description": "Species ID (1-240) of the offered monster."
+        },
+        "offeredMonsterName": {
+          "type": "string",
+          "description": "Name of the offered monster."
+        },
+        "offeredLevel": {
+          "type": "integer",
+          "description": "Level of the offered monster."
+        },
+        "offeredIvRank": {
+          "type": "string",
+          "description": "Genetic potential rank (C, B, A, S, S+)."
+        },
+        "offeredTrait": {
+          "type": "string",
+          "description": "Inherited genetic trait name."
+        },
+        "offeredTrainedStats": {
+          "type": "string",
+          "description": "Summary of trained stats from Dojo mini-games."
+        },
+        "requestedSpeciesId": {
+          "type": "integer",
+          "description": "Requested monster species ID (1-240)."
+        },
+        "requestedSpeciesName": {
+          "type": "string",
+          "description": "Name of the requested monster species."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "completed"],
+          "description": "Trade status."
+        },
+        "completedByUid": {
+          "type": "string",
+          "description": "UID of the trainer who accepted the trade (empty string when open)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "ownerName",
+        "offeredSpeciesId",
+        "offeredMonsterName",
+        "offeredLevel",
+        "offeredIvRank",
+        "offeredTrait",
+        "offeredTrainedStats",
+        "requestedSpeciesId",
+        "requestedSpeciesName",
+        "status",
+        "completedByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ArenaRoster": {
+      "title": "ArenaRoster",
+      "description": "Registered online PvP arena team for cross-player duels.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the trainer."
+        },
+        "trainerName": {
+          "type": "string",
+          "description": "Display name of the trainer."
+        },
+        "combatPower": {
+          "type": "integer",
+          "description": "Total team combat power rating."
+        },
+        "badgesCount": {
+          "type": "integer",
+          "description": "Badges earned (0-24)."
+        },
+        "wins": {
+          "type": "integer",
+          "description": "Total arena victories."
+        },
+        "leadSpeciesId": {
+          "type": "integer",
+          "description": "Lead monster species ID (1-240)."
+        },
+        "teamSummary": {
+          "type": "string",
+          "description": "Formatted summary of the 3-monster arena squad and trained stats."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active"],
+          "description": "Roster matchmaking status."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update server timestamp."
+        }
+      },
+      "required": [
+        "userId",
+        "trainerName",
+        "combatPower",
+        "badgesCount",
+        "wins",
+        "leadSpeciesId",
+        "teamSummary",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/PlayerCloudProfile" },
+      "description": "Per-user cloud save document isolated to the authenticated trainer."
+    },
+    "/users/{userId}/monsters/{monsterId}": {
+      "schema": { "$ref": "#/entities/Monster" },
+      "description": "Per-user collection of tamed Monster entities with stats, genetics, level, and evolution progress."
+    },
+    "/trades/{tradeId}": {
+      "schema": { "$ref": "#/entities/TradeOffer" },
+      "description": "Global monster trade offers."
+    },
+    "/arena_rosters/{userId}": {
+      "schema": { "$ref": "#/entities/ArenaRoster" },
+      "description": "Online PvP Arena squad registrations."
+    }
+  }
+}

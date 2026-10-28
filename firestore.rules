@@ -1,0 +1,268 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. PlayerCloudProfile Validation Helper
+    function isValidPlayerCloudProfile(data) {
+      return data.keys().hasAll([
+               'userId', 'trainerName', 'level', 'gold', 'continentId',
+               'badgesCount', 'capturedCount', 'questsCompleted',
+               'factionSylvariaRep', 'factionPyroclastRep', 'factionAetherisRep',
+               'saveStateJson', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'trainerName', 'level', 'gold', 'continentId',
+               'badgesCount', 'capturedCount', 'questsCompleted',
+               'factionSylvariaRep', 'factionPyroclastRep', 'factionAetherisRep',
+               'saveStateJson', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.trainerName is string && data.trainerName.size() >= 1 && data.trainerName.size() <= 40 &&
+             data.level is int && data.level >= 1 && data.level <= 100 &&
+             data.gold is int && data.gold >= 0 && data.gold <= 9999999 &&
+             data.continentId is int && data.continentId >= 1 && data.continentId <= 3 &&
+             data.badgesCount is int && data.badgesCount >= 0 && data.badgesCount <= 24 &&
+             data.capturedCount is int && data.capturedCount >= 0 && data.capturedCount <= 240 &&
+             data.questsCompleted is int && data.questsCompleted >= 0 && data.questsCompleted <= 10000 &&
+             data.factionSylvariaRep is int && data.factionSylvariaRep >= 0 && data.factionSylvariaRep <= 10000 &&
+             data.factionPyroclastRep is int && data.factionPyroclastRep >= 0 && data.factionPyroclastRep <= 10000 &&
+             data.factionAetherisRep is int && data.factionAetherisRep >= 0 && data.factionAetherisRep <= 10000 &&
+             data.saveStateJson is string && data.saveStateJson.size() >= 2 && data.saveStateJson.size() <= 80000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // 1b. Monster Entity Validation Helper (Stats, Genetics, Level, Evolution Progress)
+    function isValidMonster(data) {
+      return data.keys().hasAll([
+               'userId', 'speciesId', 'name', 'primaryElement',
+               'currentLevel', 'xp', 'attack', 'defense', 'speed',
+               'elementalPower', 'maxHp', 'trainedAttack', 'trainedDefense', 'trainedSpeed',
+               'geneticIvRank', 'geneticTraitId', 'geneticTraitName', 'generation',
+               'evolutionStage', 'evolutionProgressPercent', 'targetEvolutionSpeciesId',
+               'requiredArtifactId', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'speciesId', 'name', 'primaryElement',
+               'currentLevel', 'xp', 'attack', 'defense', 'speed',
+               'elementalPower', 'maxHp', 'trainedAttack', 'trainedDefense', 'trainedSpeed',
+               'geneticIvRank', 'geneticTraitId', 'geneticTraitName', 'generation',
+               'evolutionStage', 'evolutionProgressPercent', 'targetEvolutionSpeciesId',
+               'requiredArtifactId', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.speciesId is int && data.speciesId >= 1 && data.speciesId <= 240 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 50 &&
+             data.primaryElement is string && data.primaryElement.size() >= 1 && data.primaryElement.size() <= 20 &&
+             data.currentLevel is int && data.currentLevel >= 1 && data.currentLevel <= 100 &&
+             data.xp is int && data.xp >= 0 && data.xp <= 9999999 &&
+             data.attack is int && data.attack >= 1 && data.attack <= 9999 &&
+             data.defense is int && data.defense >= 1 && data.defense <= 9999 &&
+             data.speed is int && data.speed >= 1 && data.speed <= 9999 &&
+             data.elementalPower is int && data.elementalPower >= 1 && data.elementalPower <= 9999 &&
+             data.maxHp is int && data.maxHp >= 1 && data.maxHp <= 99999 &&
+             data.trainedAttack is int && data.trainedAttack >= 0 && data.trainedAttack <= 250 &&
+             data.trainedDefense is int && data.trainedDefense >= 0 && data.trainedDefense <= 250 &&
+             data.trainedSpeed is int && data.trainedSpeed >= 0 && data.trainedSpeed <= 250 &&
+             data.geneticIvRank is string && data.geneticIvRank in ['C', 'B', 'A', 'S', 'S+'] &&
+             data.geneticTraitId is string && data.geneticTraitId.size() >= 1 && data.geneticTraitId.size() <= 60 &&
+             data.geneticTraitName is string && data.geneticTraitName.size() >= 1 && data.geneticTraitName.size() <= 60 &&
+             data.generation is int && data.generation >= 1 && data.generation <= 100 &&
+             data.evolutionStage is int && data.evolutionStage >= 1 && data.evolutionStage <= 3 &&
+             data.evolutionProgressPercent is int && data.evolutionProgressPercent >= 0 && data.evolutionProgressPercent <= 100 &&
+             data.targetEvolutionSpeciesId is int && data.targetEvolutionSpeciesId >= 0 && data.targetEvolutionSpeciesId <= 240 &&
+             data.requiredArtifactId is string && data.requiredArtifactId.size() <= 60 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       isValidPlayerCloudProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidPlayerCloudProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'trainerName', 'level', 'gold', 'continentId',
+                         'badgesCount', 'capturedCount', 'questsCompleted',
+                         'factionSylvariaRep', 'factionPyroclastRep', 'factionAetherisRep',
+                         'saveStateJson', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      match /monsters/{monsterId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(monsterId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(monsterId) &&
+                         request.auth.uid == userId &&
+                         incoming().userId == request.auth.uid &&
+                         isValidMonster(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(monsterId) &&
+                         request.auth.uid == userId &&
+                         isValidMonster(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'speciesId', 'name', 'primaryElement',
+                           'currentLevel', 'xp', 'attack', 'defense', 'speed',
+                           'elementalPower', 'maxHp', 'trainedAttack', 'trainedDefense', 'trainedSpeed',
+                           'geneticIvRank', 'geneticTraitId', 'geneticTraitName', 'generation',
+                           'evolutionStage', 'evolutionProgressPercent', 'targetEvolutionSpeciesId',
+                           'requiredArtifactId', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(monsterId) && request.auth.uid == userId;
+      }
+    }
+
+    // 2. TradeOffer Validation Helper
+    function isValidTradeOffer(data) {
+      return data.keys().hasAll([
+               'ownerId', 'ownerName', 'offeredSpeciesId', 'offeredMonsterName',
+               'offeredLevel', 'offeredIvRank', 'offeredTrait', 'offeredTrainedStats',
+               'requestedSpeciesId', 'requestedSpeciesName', 'status', 'completedByUid',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerId', 'ownerName', 'offeredSpeciesId', 'offeredMonsterName',
+               'offeredLevel', 'offeredIvRank', 'offeredTrait', 'offeredTrainedStats',
+               'requestedSpeciesId', 'requestedSpeciesName', 'status', 'completedByUid',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 40 &&
+             data.offeredSpeciesId is int && data.offeredSpeciesId >= 1 && data.offeredSpeciesId <= 240 &&
+             data.offeredMonsterName is string && data.offeredMonsterName.size() >= 1 && data.offeredMonsterName.size() <= 50 &&
+             data.offeredLevel is int && data.offeredLevel >= 1 && data.offeredLevel <= 100 &&
+             data.offeredIvRank is string && data.offeredIvRank in ['C', 'B', 'A', 'S', 'S+'] &&
+             data.offeredTrait is string && data.offeredTrait.size() >= 1 && data.offeredTrait.size() <= 50 &&
+             data.offeredTrainedStats is string && data.offeredTrainedStats.size() >= 1 && data.offeredTrainedStats.size() <= 120 &&
+             data.requestedSpeciesId is int && data.requestedSpeciesId >= 1 && data.requestedSpeciesId <= 240 &&
+             data.requestedSpeciesName is string && data.requestedSpeciesName.size() >= 1 && data.requestedSpeciesName.size() <= 50 &&
+             data.status is string && data.status in ['open', 'completed'] &&
+             data.completedByUid is string && data.completedByUid.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /trades/{tradeId} {
+      allow get: if isSignedIn() && isValidId(tradeId) &&
+                    (existing().status == 'open' || existing().ownerId == request.auth.uid || existing().completedByUid == request.auth.uid);
+      allow list: if isSignedIn() &&
+                     (existing().status == 'open' || existing().ownerId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+                       isValidId(tradeId) &&
+                       incoming().ownerId == request.auth.uid &&
+                       incoming().status == 'open' &&
+                       incoming().completedByUid == '' &&
+                       isValidTradeOffer(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(tradeId) &&
+                       isValidTradeOffer(incoming()) &&
+                       existing().status == 'open' &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt && (
+                         // Action 1: Another trainer fulfills an open trade
+                         (incoming().status == 'completed' &&
+                          incoming().completedByUid == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedByUid', 'updatedAt'])) ||
+                         // Action 2: Owner updates requested monster while trade is still open
+                         (existing().ownerId == request.auth.uid &&
+                          incoming().status == 'open' &&
+                          incoming().completedByUid == '' &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['requestedSpeciesId', 'requestedSpeciesName', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(tradeId) &&
+                       existing().ownerId == request.auth.uid &&
+                       existing().status == 'open';
+    }
+
+    // 3. ArenaRoster Validation Helper
+    function isValidArenaRoster(data) {
+      return data.keys().hasAll([
+               'userId', 'trainerName', 'combatPower', 'badgesCount',
+               'wins', 'leadSpeciesId', 'teamSummary', 'status',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'trainerName', 'combatPower', 'badgesCount',
+               'wins', 'leadSpeciesId', 'teamSummary', 'status',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.trainerName is string && data.trainerName.size() >= 1 && data.trainerName.size() <= 40 &&
+             data.combatPower is int && data.combatPower >= 1 && data.combatPower <= 999999 &&
+             data.badgesCount is int && data.badgesCount >= 0 && data.badgesCount <= 24 &&
+             data.wins is int && data.wins >= 0 && data.wins <= 999999 &&
+             data.leadSpeciesId is int && data.leadSpeciesId >= 1 && data.leadSpeciesId <= 240 &&
+             data.teamSummary is string && data.teamSummary.size() >= 1 && data.teamSummary.size() <= 500 &&
+             data.status is string && data.status == 'active' &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /arena_rosters/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) &&
+                    (existing().status == 'active' || request.auth.uid == userId);
+      allow list: if isSignedIn() && existing().status == 'active';
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       isValidArenaRoster(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidArenaRoster(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'trainerName', 'combatPower', 'badgesCount',
+                         'wins', 'leadSpeciesId', 'teamSummary', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+  }
+}
