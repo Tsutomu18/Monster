@@ -25,7 +25,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.data.local.AetheronLocalDatabase
 import com.example.data.repository.AetheronRepository
+import com.example.data.repository.AetheronSyncRepository
 import com.example.ui.auth.AuthScreen
 import com.example.ui.auth.signOut
 import com.example.ui.screens.BreedingAndDexScreen
@@ -34,6 +36,7 @@ import com.example.ui.screens.QuestsCraftingAndOnlineScreen
 import com.example.ui.screens.WorldAndBattleScreen
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AetheronViewModel
+import com.example.ui.viewmodel.MonsterViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -105,13 +108,49 @@ fun AetheronAuthenticatedContent(
                 }
                 val databaseId = app.getString(R.string.firestore_database_id)
                 val db = FirebaseFirestore.getInstance(databaseId)
+                val cloudRepo = AetheronRepository(db)
+                val localDatabase = AetheronLocalDatabase.getInstance(app)
+                val syncRepo = AetheronSyncRepository(
+                    cloudRepository = cloudRepo,
+                    localMonsterDao = localDatabase.localMonsterDao(),
+                    localProfileDao = localDatabase.localPlayerProfileDao(),
+                    appContext = app,
+                    authUidProvider = { if (isCloudAuthenticated) currentUserId else null }
+                )
                 val localPrefs = app.getSharedPreferences("aetheron_local_save", android.content.Context.MODE_PRIVATE)
                 AetheronViewModel(
-                    repository = AetheronRepository(db),
+                    repository = cloudRepo,
                     currentUserId = currentUserId,
                     initialTrainerName = displayName,
                     isCloudAuthenticated = isCloudAuthenticated,
-                    localPrefs = localPrefs
+                    localPrefs = localPrefs,
+                    syncRepository = syncRepo
+                )
+            }
+        }
+    )
+
+    val monsterViewModel: MonsterViewModel = viewModel(
+        key = "monster_vm_${currentUserId}_$isCloudAuthenticated",
+        factory = viewModelFactory {
+            initializer {
+                val app = checkNotNull(this[APPLICATION_KEY]) {
+                    "APPLICATION_KEY missing from CreationExtras"
+                }
+                val databaseId = app.getString(R.string.firestore_database_id)
+                val db = FirebaseFirestore.getInstance(databaseId)
+                val cloudRepo = AetheronRepository(db)
+                val localDatabase = AetheronLocalDatabase.getInstance(app)
+                val syncRepo = AetheronSyncRepository(
+                    cloudRepository = cloudRepo,
+                    localMonsterDao = localDatabase.localMonsterDao(),
+                    localProfileDao = localDatabase.localPlayerProfileDao(),
+                    appContext = app,
+                    authUidProvider = { if (isCloudAuthenticated) currentUserId else null }
+                )
+                MonsterViewModel(
+                    syncRepository = syncRepo,
+                    userId = currentUserId
                 )
             }
         }
@@ -165,7 +204,10 @@ fun AetheronAuthenticatedContent(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
-                                onClick = { viewModel.syncToCloud(silent = false) },
+                                onClick = {
+                                    viewModel.syncToCloud(silent = false)
+                                    monsterViewModel.refreshAndSyncMonsters()
+                                },
                                 modifier = Modifier.testTag("top_cloud_save_button")
                             ) {
                                 Icon(
@@ -263,7 +305,11 @@ fun AetheronAuthenticatedContent(
             when (currentTab) {
                 0 -> WorldAndBattleScreen(gameState = gameState, viewModel = viewModel)
                 1 -> DojoTrainingAndEvolutionScreen(gameState = gameState, viewModel = viewModel)
-                2 -> BreedingAndDexScreen(gameState = gameState, viewModel = viewModel)
+                2 -> BreedingAndDexScreen(
+                    gameState = gameState,
+                    viewModel = viewModel,
+                    monsterViewModel = monsterViewModel
+                )
                 3 -> QuestsCraftingAndOnlineScreen(
                     gameState = gameState,
                     openTradesState = openTradesState,

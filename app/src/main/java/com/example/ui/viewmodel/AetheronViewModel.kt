@@ -9,6 +9,7 @@ import com.example.data.remote.PlayerCloudProfile
 import com.example.data.remote.TradeOffer
 import com.example.data.remote.UiState
 import com.example.data.repository.AetheronRepository
+import com.example.data.repository.AetheronSyncRepository
 import com.example.domain.catalog.AetheronWorldCatalog
 import com.example.domain.engine.DynamicQuestAndTrainingEngine
 import com.example.domain.engine.TrainingExerciseType
@@ -78,7 +79,8 @@ class AetheronViewModel(
     private val currentUserId: String,
     initialTrainerName: String = "Aether-Trainer",
     val isCloudAuthenticated: Boolean = true,
-    private val localPrefs: SharedPreferences? = null
+    private val localPrefs: SharedPreferences? = null,
+    private val syncRepository: AetheronSyncRepository? = null
 ) : ViewModel() {
 
     private val _gameState = MutableStateFlow(createInitialGameState(currentUserId, initialTrainerName))
@@ -119,22 +121,40 @@ class AetheronViewModel(
         }
 
     val cloudMonstersState: StateFlow<UiState<List<com.example.data.remote.Monster>>> =
-        if (isCloudAuthenticated) {
-            repository.observeUserMonsters(currentUserId)
-                .map<List<com.example.data.remote.Monster>, UiState<List<com.example.data.remote.Monster>>> {
-                    UiState.Success(it)
-                }
-                .catch { e ->
-                    Log.w(TAG, "Error observing user monsters", e)
-                    emit(UiState.Error(e.localizedMessage ?: "Monster-Datenbank nicht erreichbar"))
-                }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(5000L),
-                    initialValue = UiState.Loading
-                )
-        } else {
-            MutableStateFlow<UiState<List<com.example.data.remote.Monster>>>(UiState.Success(emptyList())).asStateFlow()
+        when {
+            syncRepository != null -> {
+                syncRepository.observeMonsters(currentUserId)
+                    .map<List<com.example.data.remote.Monster>, UiState<List<com.example.data.remote.Monster>>> {
+                        UiState.Success(it)
+                    }
+                    .catch { e ->
+                        Log.w(TAG, "Error observing synced monsters", e)
+                        emit(UiState.Error(e.localizedMessage ?: "Monster-Datenbank Fehler"))
+                    }
+                    .stateIn(
+                        scope = viewModelScope,
+                        started = SharingStarted.WhileSubscribed(5000L),
+                        initialValue = UiState.Loading
+                    )
+            }
+            isCloudAuthenticated -> {
+                repository.observeUserMonsters(currentUserId)
+                    .map<List<com.example.data.remote.Monster>, UiState<List<com.example.data.remote.Monster>>> {
+                        UiState.Success(it)
+                    }
+                    .catch { e ->
+                        Log.w(TAG, "Error observing user monsters", e)
+                        emit(UiState.Error(e.localizedMessage ?: "Monster-Datenbank nicht erreichbar"))
+                    }
+                    .stateIn(
+                        scope = viewModelScope,
+                        started = SharingStarted.WhileSubscribed(5000L),
+                        initialValue = UiState.Loading
+                    )
+            }
+            else -> {
+                MutableStateFlow<UiState<List<com.example.data.remote.Monster>>>(UiState.Success(emptyList())).asStateFlow()
+            }
         }
 
     init {
@@ -142,12 +162,16 @@ class AetheronViewModel(
     }
 
     fun syncSingleMonsterToFirestore(instance: MonsterInstance, isNew: Boolean = false) {
-        if (!isCloudAuthenticated) {
-            saveLocalProfile(silent = true)
-            return
-        }
         viewModelScope.launch {
             val entity = com.example.data.remote.Monster.fromMonsterInstance(currentUserId, instance)
+            if (syncRepository != null) {
+                syncRepository.saveMonster(entity)
+                return@launch
+            }
+            if (!isCloudAuthenticated) {
+                saveLocalProfile(silent = true)
+                return@launch
+            }
             if (isNew) {
                 repository.createMonster(entity)
             } else {
@@ -170,21 +194,46 @@ class AetheronViewModel(
             selectedMonsterId = if (state.selectedMonsterId == monsterId) remaining.first().instanceId else state.selectedMonsterId,
             statusBannerDe = "Monster in die Wildnis entlassen."
         )
-        if (!isCloudAuthenticated) {
-            saveLocalProfile(silent = true)
-            return
-        }
         viewModelScope.launch {
+            if (syncRepository != null) {
+                syncRepository.deleteMonster(monsterId)
+                syncToCloud(silent = true)
+                return@launch
+            }
+            if (!isCloudAuthenticated) {
+                saveLocalProfile(silent = true)
+                return@launch
+            }
             repository.deleteMonster(monsterId)
         }
     }
 
     private fun loadCloudSaveOrInitialize() {
-        if (!isCloudAuthenticated) {
-            loadLocalSaveIfPresent()
-            return
-        }
         viewModelScope.launch {
+            if (syncRepository != null) {
+                if (isCloudAuthenticated) {
+                    syncRepository.synchronizeWithFirestore()
+                }
+                val profile = syncRepository.getPlayerProfile(currentUserId).getOrNull()
+                if (profile != null && profile.saveStateJson.length > 10) {
+                    restoreFromCloudProfile(profile)
+                    if (!isCloudAuthenticated) {
+                        _gameState.update {
+                            it.copy(
+                                statusBannerDe = "💾 Spielstand aus lokaler Room-Datenbank geladen (${it.monsters.size} Monster, ${it.earnedBadges.size}/24 Orden)."
+                            )
+                        }
+                    }
+                } else {
+                    syncToCloud(silent = true)
+                }
+                return@launch
+            }
+
+            if (!isCloudAuthenticated) {
+                loadLocalSaveIfPresent()
+                return@launch
+            }
             val result = repository.getPlayerProfile(currentUserId)
             val cloudProfile = result.getOrNull()
             if (cloudProfile != null && cloudProfile.saveStateJson.length > 10) {
@@ -804,6 +853,8 @@ class AetheronViewModel(
         return true
     }
 
+    private val breedingService = com.example.service.BreedingService()
+
     /**
      * Zucht- & Genetik-Engine (inklusive Verstärkung gefangener Legendärer Monster!)
      */
@@ -813,50 +864,13 @@ class AetheronViewModel(
         val parentA = state.monsters.find { it.instanceId == parentAId } ?: return
         val parentB = state.monsters.find { it.instanceId == parentBId } ?: return
 
-        val speciesA = AetheronWorldCatalog.getSpecies(parentA.speciesId)
-        val speciesB = AetheronWorldCatalog.getSpecies(parentB.speciesId)
-
-        // Wenn ein Elternteil Legendär ist, kann dessen Linie direkt verstärkt weitergezüchtet werden!
-        val childSpecies = when {
-            speciesA.isLegendary -> speciesA
-            speciesB.isLegendary -> speciesB
-            else -> {
-                val baseId = ((parentA.speciesId - 1) / 3) * 3 + 1
-                AetheronWorldCatalog.getSpecies(baseId.coerceIn(1, 240))
-            }
-        }
-
-        val rankOrder = listOf("C", "B", "A", "S", "S+")
-        val maxParentRankIdx = maxOf(
-            rankOrder.indexOf(parentA.ivRank).coerceAtLeast(0),
-            rankOrder.indexOf(parentB.ivRank).coerceAtLeast(0)
-        )
-        val childRank = rankOrder[(maxParentRankIdx + 1).coerceAtMost(rankOrder.lastIndex)]
-        val childGen = maxOf(parentA.generation, parentB.generation) + 1
-        val combinedTraits = (parentA.inheritedTraits + parentB.inheritedTraits + childSpecies.signatureTrait)
-            .distinctBy { it.id }
-            .take(3)
-
-        val child = MonsterInstance(
-            instanceId = "bred_${UUID.randomUUID().toString().take(8)}",
-            speciesId = childSpecies.id,
-            nickname = "${childSpecies.nameDe} Gen-$childGen",
-            level = ((parentA.level + parentB.level) / 3).coerceIn(5, 50),
-            ivRank = childRank,
-            inheritedTraits = combinedTraits,
-            trainedAtk = ((parentA.trainedAtk + parentB.trainedAtk) / 3).coerceAtMost(120),
-            trainedDef = ((parentA.trainedDef + parentB.trainedDef) / 3).coerceAtMost(120),
-            trainedSpd = ((parentA.trainedSpd + parentB.trainedSpd) / 3).coerceAtMost(120),
-            trainedElem = ((parentA.trainedElem + parentB.trainedElem) / 3).coerceAtMost(120),
-            trainedHp = ((parentA.trainedHp + parentB.trainedHp) / 3).coerceAtMost(120),
-            generation = childGen
-        )
-        val finalChild = child.copy(currentHp = child.maxHp(childSpecies))
+        val finalChild = breedingService.breedDomainInstances(parentA, parentB)
+        val childSpecies = AetheronWorldCatalog.getSpecies(finalChild.speciesId)
 
         _gameState.value = state.copy(
             monsters = state.monsters + finalChild,
             capturedSpeciesIds = state.capturedSpeciesIds + childSpecies.id,
-            statusBannerDe = "🧬 Zucht erfolgreich! ${finalChild.nickname} (Gen-Rang $childRank, Generation $childGen) mit ${combinedTraits.size} vererbten Merkmalen geschlüpft!"
+            statusBannerDe = "🧬 Zucht erfolgreich! ${finalChild.nickname} (Gen-Rang ${finalChild.ivRank}, Generation ${finalChild.generation}) mit ${finalChild.inheritedTraits.size} vererbten Merkmalen geschlüpft!"
         )
         syncToCloud(silent = true)
     }
@@ -1082,10 +1096,6 @@ class AetheronViewModel(
     }
 
     fun syncToCloud(silent: Boolean = false) {
-        if (!isCloudAuthenticated) {
-            saveLocalProfile(silent = silent)
-            return
-        }
         val state = _gameState.value
         viewModelScope.launch {
             val json = serializeGameState(state)
@@ -1103,6 +1113,32 @@ class AetheronViewModel(
                 factionAetherisRep = (state.factionStandings["aetheris_chroniclers"] ?: 100).toLong(),
                 saveStateJson = json
             )
+
+            if (syncRepository != null) {
+                syncRepository.savePlayerProfile(profile)
+                state.monsters.forEach { instance ->
+                    val monsterEntity = com.example.data.remote.Monster.fromMonsterInstance(currentUserId, instance)
+                    syncRepository.saveMonster(monsterEntity)
+                }
+                val syncReport = syncRepository.synchronizeWithFirestore().getOrNull()
+                _gameState.update {
+                    val msg = if (syncReport?.isCloudAvailable == true) {
+                        "☁️ Room & Firestore synchronisiert (${state.monsters.size} Monster)!"
+                    } else {
+                        "💾 Spielstand & ${state.monsters.size} Monster in lokaler Room-Datenbank gespeichert!"
+                    }
+                    it.copy(
+                        isCloudSynced = true,
+                        statusBannerDe = if (silent) it.statusBannerDe else msg
+                    )
+                }
+                return@launch
+            }
+
+            if (!isCloudAuthenticated) {
+                saveLocalProfile(silent = silent)
+                return@launch
+            }
             val res = repository.savePlayerProfile(profile)
             if (res.isSuccess) {
                 _gameState.update {

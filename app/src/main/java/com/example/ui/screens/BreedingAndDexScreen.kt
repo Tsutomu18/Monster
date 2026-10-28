@@ -23,12 +23,20 @@ import com.example.ui.components.MonsterCanvasAvatar
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AetheronGameState
 import com.example.ui.viewmodel.AetheronViewModel
+import com.example.ui.viewmodel.MonsterViewModel
 
 @Composable
 fun BreedingAndDexScreen(
     gameState: AetheronGameState,
-    viewModel: AetheronViewModel
+    viewModel: AetheronViewModel,
+    monsterViewModel: MonsterViewModel? = null
 ) {
+    LaunchedEffect(gameState.monsters, monsterViewModel) {
+        if (monsterViewModel != null && gameState.monsters.isNotEmpty()) {
+            monsterViewModel.seedStarterMonstersIfEmpty(gameState.monsters)
+        }
+    }
+
     var parentAId by remember(gameState.monsters) {
         mutableStateOf(gameState.monsters.getOrNull(0)?.instanceId ?: "")
     }
@@ -48,6 +56,18 @@ fun BreedingAndDexScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
     ) {
+        // 0. Monster Collection (Room + Firestore Sync & Filter UI)
+        if (monsterViewModel != null) {
+            item {
+                MonsterCollectionScreen(
+                    monsterViewModel = monsterViewModel,
+                    onMonsterDeleted = { deletedId ->
+                        viewModel.releaseMonsterFromCollection(deletedId)
+                    }
+                )
+            }
+        }
+
         // 1. Complex Genetics & Legendary Breeding Lab
         item {
             Card(
