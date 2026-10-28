@@ -168,6 +168,57 @@ data class Monster(
     }
 
     /**
+     * Executes a [com.example.training.TrainingActivity] mini-game on this [Monster] with the
+     * given [performanceScore] (0..100) and returns the [com.example.training.TrainingOutcome].
+     */
+    fun performTraining(
+        activity: com.example.training.TrainingActivity,
+        performanceScore: Int
+    ): com.example.training.TrainingOutcome {
+        return activity.executeTraining(this, performanceScore)
+    }
+
+    /**
+     * Applies stat boosts earned from a [com.example.training.TrainingActivity] along with XP
+     * and records the latest training focus in the monster's [genetics] map.
+     */
+    fun applyTrainingBoost(
+        attackDelta: Int = 0,
+        defenseDelta: Int = 0,
+        speedDelta: Int = 0,
+        staminaDelta: Int = 0,
+        xpGained: Int = 0,
+        completedActivityId: String? = null
+    ): Monster {
+        val newAttack = (attack + attackDelta).coerceIn(1, 9999)
+        val newDefense = (defense + defenseDelta).coerceIn(1, 9999)
+        val newSpeed = (speed + speedDelta).coerceIn(1, 9999)
+        val newStamina = (stamina + staminaDelta).coerceIn(10, 9999)
+
+        val updatedGenetics = if (completedActivityId != null) {
+            genetics + ("lastTrainingActivity" to completedActivityId)
+        } else {
+            genetics
+        }
+
+        val boosted = copy(
+            attack = newAttack,
+            defense = newDefense,
+            speed = newSpeed,
+            stamina = newStamina,
+            genetics = updatedGenetics,
+            baseStats = BaseStats(
+                attack = newAttack,
+                defense = newDefense,
+                speed = newSpeed,
+                stamina = newStamina
+            )
+        )
+
+        return if (xpGained > 0) boosted.gainExperience(xpGained) else boosted
+    }
+
+    /**
      * Converts this model to the runtime domain [MonsterInstance].
      */
     fun toDomainInstance(speciesId: Int = 1): MonsterInstance {
